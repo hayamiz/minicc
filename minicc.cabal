@@ -1,0 +1,14 @@
+Name:		MiniCC
+Version:	0.0.1
+Cabal-Version:	>= 1.2
+License:	GPL-3
+License-File:	LICENSE
+Author:		Yuto HAYAMIZU <y.hayamizu@gmail.com>
+Homepage:	http://hayamiz.com/
+Synopsis:	A study for writing a compiler
+Build-Type:	Simple
+
+Executable mincc
+  Build-Depends:	base
+  Main-Is:		Main.hs
+  Hs-Source-Dirs:	src
