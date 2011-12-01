@@ -1,1 +1,3 @@
 /dist/
+/parser_tests/fuzzying/parser
+/parser_tests/regular/parser

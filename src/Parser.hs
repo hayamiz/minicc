@@ -93,6 +93,8 @@ program :: GenParser Char st CProgram
 program =
     do spaces
        ret <- many funcDef
+       spaces
+       eof
        return ret
 
 funcDef :: GenParser Char st CDef
@@ -323,9 +325,8 @@ parseProgram filename str =
     let ret = parse program filename str
     in case ret of
          Right prog -> prog
-         Left _ -> []
+         Left err -> error $ show err
 
-parseFile :: FilePath -> IO CProgram
 parseFile filename =
     do
       str <- readFile filename
@@ -374,7 +375,6 @@ cStmtToString stmt =
           "while(" ++ (cExpToString e) ++ ") " ++ (cStmtToString body)
       CExpStmt e -> (cExpToString e)  ++ ";"
       CNopStmt -> ";"
-      _ -> show stmt
 
 cVarDeclToString :: CVarDecl -> String
 cVarDeclToString (typ, id) = (typeToString typ) ++ " " ++ id ++ ";"
@@ -393,7 +393,6 @@ cExpToString expr =
           (cExpToString e1) ++ " " ++ (binopToString op) ++ " " ++ (cExpToString e2)
       CAssignExp e1 e2 ->
           (cExpToString e1) ++ " = " ++ (cExpToString e2)
-      _ -> show expr
 
 unopToString :: UnaryOp -> String
 unopToString unop =
