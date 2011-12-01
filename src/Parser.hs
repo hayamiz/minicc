@@ -1,5 +1,8 @@
 
+module Parser where
+
 import Text.ParserCombinators.Parsec
+import Data.List
 
 -- Syntax Tree
 
@@ -87,7 +90,10 @@ intLiteral = many1 digit
 -- Grammars
 
 program :: GenParser Char st CProgram
-program = many funcDef
+program =
+    do spaces
+       ret <- many funcDef
+       return ret
 
 funcDef :: GenParser Char st CDef
 funcDef = do typ <- typeExp
@@ -101,10 +107,11 @@ funcDef = do typ <- typeExp
              char ')'
              spaces
              stmt <- compStmt
+             spaces
              return $ CFuncDef typ id params stmt
 
 typeExp :: GenParser Char st TypeExp
-typeExp = do string "int"; return TypInt
+typeExp = do try $ string "int"; return TypInt
 
 param :: GenParser Char st (TypeExp, String)
 param = do typ <- typeExp
@@ -122,11 +129,11 @@ stmt =
     do spaces
        ret <- (do char ';'; return CNopStmt
                <|>
-               do string "break"; spaces; char ';'; return CBreakStmt
+               do try $ string "break"; spaces; char ';'; return CBreakStmt
                <|>
-               do string "continue"; spaces; char ';'; return CContinueStmt
+               do try $ string "continue"; spaces; char ';'; return CContinueStmt
                <|>
-               do string "return"; spaces; e <- expr; spaces; char ';';
+               do try $ string "return"; spaces; e <- expr; spaces; char ';';
                   return $ CReturnStmt e
                <|>
                compStmt
@@ -140,7 +147,7 @@ stmt =
        return ret
 
 ifStmt :: GenParser Char st CStmt
-ifStmt = do string "if"
+ifStmt = do try $ string "if"
             spaces; char '('
             pred <- expr
             char ')'
@@ -174,6 +181,9 @@ varDecl =
     do typ <- typeExp
        spaces
        ident <- identifier
+       spaces
+       char ';'
+       spaces
        return (typ, ident)
 
 -- Expressions
@@ -194,9 +204,9 @@ expr =
 
 eqlOp :: GenParser Char st BinaryOp
 eqlOp =
-    do string "=="; return BinopEq
+    do try $ string "=="; return BinopEq
     <|>
-    do string "!="; return BinopNeq
+    do try $ string "!="; return BinopNeq
 
 eqlExp :: GenParser Char st CExp
 eqlExp = 
@@ -205,18 +215,19 @@ eqlExp =
        es <- many (do op <- eqlOp
                       spaces
                       e <- relExp
+                      spaces
                       return (op, e))
        return $ foldl (\e_ (op, e__) -> CBinaryExp op e_ e__) e1 es
 
 relOp :: GenParser Char st BinaryOp
 relOp =
-    do string "<"; return BinopLt
+    do try $ string "<="; return BinopLe
     <|>
-    do string ">"; return BinopGt
+    do try $ string ">="; return BinopGe
     <|>
-    do string "<="; return BinopLe
+    do try $ string "<"; return BinopLt
     <|>
-    do string ">="; return BinopGe
+    do try $ string ">"; return BinopGt
 
 relExp :: GenParser Char st CExp
 relExp = 
@@ -225,32 +236,35 @@ relExp =
        es <- many (do op <- relOp
                       spaces
                       e <- addExp
+                      spaces
                       return (op, e))
        return $ foldl (\e_ (op, e__) -> CBinaryExp op e_ e__) e1 es
 
 addOp :: GenParser Char st BinaryOp
 addOp =
-    do string "+"; return BinopPlus
+    do try $ string "+"; return BinopPlus
     <|>
-    do string "-"; return BinopMinus
+    do try $ string "-"; return BinopMinus
 
 addExp :: GenParser Char st CExp
 addExp = 
-    do e1 <- mulExp
+    do spaces
+       e1 <- mulExp
        spaces
        es <- many (do op <- addOp
                       spaces
                       e <- mulExp
+                      spaces
                       return (op, e))
        return $ foldl (\e_ (op, e__) -> CBinaryExp op e_ e__) e1 es
 
 mulOp :: GenParser Char st BinaryOp
 mulOp =
-    do string "*"; return BinopMult
+    do try $ string "*"; return BinopMult
     <|>
-    do string "/"; return BinopDiv
+    do try $ string "/"; return BinopDiv
     <|>
-    do string "%"; return BinopMod
+    do try $ string "%"; return BinopMod
 
 mulExp :: GenParser Char st CExp
 mulExp = 
@@ -259,6 +273,7 @@ mulExp =
        es <- many (do op <- mulOp
                       spaces
                       e <- unaryExp
+                      spaces
                       return (op, e))
        return $ foldl (\e_ (op, e__) -> CBinaryExp op e_ e__) e1 es
 
@@ -303,7 +318,101 @@ argExpList = sepBy expr (do spaces; char ','; spaces)
 
 --
 
-parseFile filepath = do
-  src <- readFile filepath
-  print $ parse program filepath src
-  return ()
+parseProgram :: FilePath -> String -> CProgram
+parseProgram filename str =
+    let ret = parse program filename str
+    in case ret of
+         Right prog -> prog
+         Left _ -> []
+
+parseFile :: FilePath -> IO CProgram
+parseFile filename =
+    do
+      str <- readFile filename
+      return $ parseProgram filename str
+
+-- printer
+
+cProgramToString :: CProgram -> String
+cProgramToString = concat . intersperse "\n" . map cDefToString
+
+cDefToString :: CDef -> String
+cDefToString cdef =
+    case cdef of
+      CFuncDef typ id params body ->
+          (typeToString typ)
+          ++ " " ++ id ++
+          "(" ++ (paramListToString params) ++ ") " ++
+          (cStmtToString body) ++ "\n"
+
+typeToString :: TypeExp -> String
+typeToString typ = "int"
+
+paramListToString :: [(TypeExp, Ident)] -> String
+paramListToString =
+    concat . intersperse ", " . map paramToString
+    where
+      paramToString (typ, id) = (typeToString typ) ++ " " ++ id
+
+cStmtToString :: CStmt -> String
+cStmtToString stmt =
+    case stmt of
+      CBreakStmt -> "break;"
+      CContinueStmt -> "continue;"
+      CReturnStmt e -> "return " ++ (cExpToString e) ++ ";"
+      CCompStmt decls stmts ->
+          let declsStr = concat $ map (++ "\n") $ map cVarDeclToString decls
+              stmtsStr = concat $ map (++ "\n") $ map cStmtToString stmts
+          in
+          "{\n" ++ declsStr ++ stmtsStr ++ "}"
+      CIfStmt e stmt Nothing ->
+          "if (" ++ (cExpToString e) ++ ") " ++ (cStmtToString stmt)
+      CIfStmt e stmt (Just elseStmt) ->
+          "if (" ++ (cExpToString e) ++ ") " ++ (cStmtToString stmt) ++
+          "\n else " ++ (cStmtToString elseStmt)
+      CWhileStmt e body ->
+          "while(" ++ (cExpToString e) ++ ") " ++ (cStmtToString body)
+      CExpStmt e -> (cExpToString e)  ++ ";"
+      CNopStmt -> ";"
+      _ -> show stmt
+
+cVarDeclToString :: CVarDecl -> String
+cVarDeclToString (typ, id) = (typeToString typ) ++ " " ++ id ++ ";"
+
+cExpToString :: CExp -> String
+cExpToString expr =
+    case expr of
+      CLitIntExp int -> show int
+      CParenExp e -> "(" ++ (cExpToString e) ++ ")"
+      CIdentExp id -> id
+      CFuncallExp fname exprs ->
+          fname ++ "(" ++ (concat $ intersperse ", " $ map cExpToString exprs) ++ ")"
+      CUnaryExp op e ->
+          (unopToString op) ++ " " ++ (cExpToString e)
+      CBinaryExp op e1 e2 ->
+          (cExpToString e1) ++ " " ++ (binopToString op) ++ " " ++ (cExpToString e2)
+      CAssignExp e1 e2 ->
+          (cExpToString e1) ++ " = " ++ (cExpToString e2)
+      _ -> show expr
+
+unopToString :: UnaryOp -> String
+unopToString unop =
+    case unop of
+      UnopPlus -> "+"
+      UnopMinus -> "-"
+      UnopNot -> "!"
+
+binopToString :: BinaryOp -> String
+binopToString binop =
+    case binop of
+      BinopEq ->	"=="
+      BinopNeq ->	"!="
+      BinopGt ->	">"
+      BinopLt ->	"<"
+      BinopGe ->	">="
+      BinopLe ->	"<="
+      BinopPlus ->	"+"
+      BinopMinus ->	"-"
+      BinopMult ->	"*"
+      BinopDiv ->	"/"
+      BinopMod ->	"%"

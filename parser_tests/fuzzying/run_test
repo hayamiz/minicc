@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# fuzzying test program for your parser.
+# your parser program must exit(0) for c??.c
+# your parser program must exit(1) for w??.c
+
+
+for f in c??.c; do
+    if ./parser $f > /dev/null 2> /dev/null ; then
+       echo "OK $f"
+    else 	       	    	
+       echo "NG $f"
+    fi
+done
+
+for f in w??.c; do
+    if ./parser $f > /dev/null 2> /dev/null ; then
+       echo "NG $f"
+    else 	       	    	
+       echo "OK $f"
+    fi
+done
+

@@ -1,0 +1,13 @@
+For 'regular' directory, your parser must parse all .c programs
+without an error, and the result must be compared with the corresponding 
+.ans programs.
+There must not be any diffs (as long as you print your parser tree
+with pr_program function in the syntree.c unmodified).
+Use run_test script in that directory. 
+
+For 'fuzzying' directory, there are many c??.c files and their
+corresponding (slightly modified) w??.c files. Your parser must 
+parse all c??.c files without an error, AND must signal an error for
+all w??.c files.  Use run_test script in that directory. Note that
+some numbers are missing (like c15.c).
+

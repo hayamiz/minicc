@@ -1,0 +1,11 @@
+#!/bin/sh
+
+for f in f??.c; do
+    ./parser $f > ${f}.me
+    if diff ${f}.me ${f}.ans ; then
+       echo "OK $f"
+    else
+       echo "NG $f (compare your output with ${f}.ans with diff command)"
+    fi   
+done
+

@@ -9,6 +9,11 @@ Synopsis:	A study for writing a compiler
 Build-Type:	Simple
 
 Executable mincc
-  Build-Depends:	base
+  Build-Depends:	base, parsec
   Main-Is:		Main.hs
+  Hs-Source-Dirs:	src
+
+Executable parser
+  Build-Depends:	base, parsec
+  Main-Is:		ParserMain.hs
   Hs-Source-Dirs:	src

@@ -1,0 +1,134 @@
+----------------------------------------------
+
+字句の定義: 字句解析器で認識されるもの
+
+(1) A* はAの0回以上の繰り返しをあらわす
+(2) A+ はAの1回以上の繰り返しをあらわす
+
+----------------------------------------------
+
+keywords (identifierの中で, 予約されているもの):
+  break, continue, else, if, int, return, while
+
+identifier: (以下の中でkeywords以外のもの)
+  nondigit (nondigit|digit)*
+
+int-literal:
+  digit+
+
+nondigit: one of
+  _ a b c d e f g h i j k l m
+  n o p q r s t u v w x y z
+  A B C D E F G H I J K L M
+  N O P Q R S T U V W X Y Z
+
+digit: one of
+  0 1 2 3 4 5 6 7 8 9
+
+TOKEN:
+  int-literal identifier keywords
+  ( ) { } * + - / % ! < > <= >= == != ; = ,
+  end-of-file
+----------------------------------------------
+文法:
+
+(1) EPSILON は空文字列を表す
+(2) A* はAの0回以上の繰り返しを表す
+(3) A+ はAの1回以上の繰り返しを表す
+(4) A? はAの0回または1回の出現(つまり, Aが現れても現れなくてもよい)を表す
+(5) | は, 「または」を表す. statementの例を参照
+(6) 以下で, 括弧記号---'('と')'---は, クオートで囲まれている場合は, 
+括弧文字そのものを表す. 囲まれていない場合は, 文法を記述するための記号.
+(7) あとから拡張しやすいように, 回りくどくなっている部分もある.
+(例: type-expression := int など. あとからここだけ変更可能にするため)
+----------------------------------------------
+
+program :=
+  definition* end-of-file
+
+definition :=
+  function-definition
+
+function-definition :=
+  type-expression identifier '(' parameter-list ')' compound-statement
+
+parameter-list :=
+    EPSILON
+  | parameter ( , parameter )*
+
+parameter :=
+  type-expression identifier
+
+type-expression :=
+  int 
+
+----------------------------------------------
+statement :=
+    ';'
+  | continue ';'
+  | break ';'
+  | return expression ';'
+  | compound-statement
+  | if-statement
+  | while-statement
+  | expression ';'
+
+compound-statement :=
+  '{' var-declaration* statement* '}'
+
+var-declaration :=
+  type-expression identifier ';'
+
+if-statement :=
+  if '(' expression ')' statement ( else statement )?
+
+while-statement :=
+  while '(' expression ')' statement
+
+----------------------------------------------
+
+expression :=
+  equality-expression ( = expression )?
+
+equality-expression :=
+  relational-expression ( equality-operator relational-expression )*
+
+equality-operator: one of
+  == != 
+
+relational-expression :=
+  additive-expression ( relational-operator additive-expression )*
+
+relational-operator: one of
+  < > <= >=
+
+additive-expression :=
+  multiplicative-expression ( additive-operator multiplicative-expression )*
+
+additive-operator: one of
+  + - 
+
+multiplicative-expression :=
+  unary-expression ( multiplicative-operator unary-expression )*
+
+multiplicative-operator: one of 
+  * / %
+
+unary-expression :=
+   int-literal
+ | identifier ( '(' argument-expression-list ')' )?
+ | '(' expression ')'
+ | unary-operator unary-expression
+
+unary-operator: one of
+  + - !
+
+argument-expression-list :=
+   EPSILON
+ | expression ( , expression )*
+
+# 修正:
+# 11/12:
+#
+# 上記 (  | expression ( , expression )*   )の | を追加
+# 
