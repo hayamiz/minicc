@@ -5,7 +5,6 @@ import Text.ParserCombinators.Parsec
 
 type Filename = String
 type Lineno = Int
-type Location = (Filename, Int)
 
 data UnaryOp = UnopPlus | UnopMinus | UnopNot deriving (Show)
 data BinaryOp = BinopEq
@@ -31,25 +30,25 @@ data TypeExp = TypInt deriving (Show)
 
 type CProgram = [CDef]
 
-data CStmt = CBreakStmt
-           | CContinueStmt
-           | CReturnStmt CExp
-           | CCompStmt [CVarDecl] [CStmt]
-           | CIfStmt CExp CStmt (Maybe CStmt)
-           | CWhileStmt CExp CStmt
-           | CExpStmt CExp
-           | CNopStmt
+data CStmt = CBreakStmt SourcePos
+           | CContinueStmt SourcePos
+           | CReturnStmt CExp SourcePos
+           | CCompStmt [CVarDecl] [CStmt] SourcePos
+           | CIfStmt CExp CStmt (Maybe CStmt) SourcePos
+           | CWhileStmt CExp CStmt SourcePos
+           | CExpStmt CExp SourcePos
+           | CNopStmt SourcePos
              deriving (Show)
 
-type CVarDecl = (TypeExp, Ident)
+type CVarDecl = (TypeExp, Ident, SourcePos)
 
-data CExp = CLitIntExp Int
-          | CParenExp CExp
-          | CIdentExp Ident
-          | CFuncallExp Ident [CExp]
-          | CUnaryExp UnaryOp CExp
-          | CBinaryExp BinaryOp CExp CExp
-          | CAssignExp CExp CExp
+data CExp = CLitIntExp Int SourcePos
+          | CParenExp CExp SourcePos
+          | CIdentExp Ident SourcePos
+          | CFuncallExp Ident [CExp] SourcePos
+          | CUnaryExp UnaryOp CExp SourcePos
+          | CBinaryExp BinaryOp CExp CExp SourcePos
+          | CAssignExp CExp CExp SourcePos
             deriving (Show)
 
-data CDef = CFuncDef TypeExp Ident [(TypeExp, Ident)] CStmt deriving (Show)
+data CDef = CFuncDef TypeExp Ident [(TypeExp, Ident)] CStmt SourcePos deriving (Show)
