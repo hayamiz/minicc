@@ -266,6 +266,7 @@ parseProgram filename str =
          Right prog -> prog
          Left err -> error $ show err
 
+parseFile :: String -> IO CProgram
 parseFile filename =
     do
       str <- readFile filename
