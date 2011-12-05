@@ -113,7 +113,8 @@ doSemCheckCStmt env stmt =
               [InvalidContinueError pos]
       CReturnStmt e pos ->
           let expErrors = doSemCheckCExp env e
-          in expErrors          -- TODO: check returning type of exp
+              typErrors = doTypeCheckCReturnStmt env e
+          in expErrors ++ typErrors
       CCompStmt vardecls stmts pos ->
           let vtable_ = foldl (\tbl vdecl -> insertCVarDecl vdecl tbl)
                               Map.empty vardecls
@@ -124,7 +125,7 @@ doSemCheckCStmt env stmt =
           in
             (concatMap (doSemCheckCVarDecl env_) vardecls) ++
               (concatMap (doSemCheckCStmt env_) stmts)
-      CIfStmt e stmt Nothing pos -> -- TODO: check type of predicate exp
+      CIfStmt e stmt Nothing pos ->
           let typErrs = doTypeCheckCExp env TypInt e
           in
             (doSemCheckCExp env e) ++ (doSemCheckCStmt env stmt) ++ typErrs
@@ -132,13 +133,14 @@ doSemCheckCStmt env stmt =
           (doSemCheckCExp env e) ++ 
               (doSemCheckCStmt env stmt) ++
               (doSemCheckCStmt env elseStmt)
-      CWhileStmt e stmt _ -> -- TODO: check type of predicate exp
-          let env_ = Env {block = LoopBlock,
+      CWhileStmt e stmt _ ->
+          let typErrs = doTypeCheckCExp env TypInt e
+              env_ = Env {block = LoopBlock,
                           varTable = Map.empty,
                           funcTable = (funcTable env),
                           parent = Just env}
           in
-          (doSemCheckCExp env e) ++ (doSemCheckCStmt env_ stmt)
+          typErrs ++ (doSemCheckCExp env e) ++ (doSemCheckCStmt env_ stmt)
       CExpStmt e _ ->
           doSemCheckCExp env e
       CNopStmt _ ->
@@ -155,6 +157,10 @@ doTypeCheckCExp env expectedTyp expr =
                 []
             else
                 [TypeError expectedTyp typ expr]
+
+doTypeCheckCReturnStmt :: Env -> CExp -> [SemError]
+doTypeCheckCReturnStmt env expr =
+    []                          -- TODO:
 
 insertCVarDecl :: CVarDecl -> Map.Map String VarInfo -> Map.Map String VarInfo
 insertCVarDecl (typ, id, pos) table =
@@ -173,7 +179,6 @@ isBreakable env =
 
 isContinuable = isBreakable
 
--- TODO:
 doSemCheckCExp :: Env -> CExp -> [SemError]
 doSemCheckCExp env expr =
     case expr of
@@ -189,7 +194,7 @@ doSemCheckCExp env expr =
           in
             case (Map.lookup id (funcTable env)) of
               Nothing -> (UndefinedFunctionError id pos) : argErrs
-              Just (fi @ (FuncInfo typ id paramTyps _)) -> -- TODO: arg type check
+              Just (fi @ (FuncInfo typ id paramTyps _)) ->
                   argErrs ++ (doTypeCheckCFuncallExp env fi id args pos)
       CUnaryExp op e _ -> doSemCheckCExp env e
       CBinaryExp op e1 e2 _ ->
