@@ -6,7 +6,7 @@ import Text.ParserCombinators.Parsec
 import Parser
 import qualified Data.Map as Map
 
-data Block = FuncBlock
+data Block = FuncBlock FuncInfo
            | LoopBlock
            | CompBlock
            | Root
@@ -32,6 +32,9 @@ data SemError = InvalidBreakError SourcePos
               | UndefinedNameError String SourcePos
               | UndefinedFunctionError String SourcePos
               | InvalidLvalError CExp
+              | TypeError TypeExp TypeExp CExp -- 1st ... expected, 2nd ... actual
+              | ArityError Ident Int Int SourcePos -- 1st ... func name, 2nd ... expected arity, 3rd ... actual arity
+              | TypeUndecidable CExp
               | TypeConflictError FuncInfo
               deriving (Show)
 
@@ -84,7 +87,7 @@ doSemCheckCDef env cdef =
     case cdef of
       CFuncDef typ id params stmt pos ->
           doSemCheckCStmt
-              (Env {block = FuncBlock,
+              (Env {block = FuncBlock (FuncInfo typ id (map fst params) (Just pos)),
                     funcTable = (funcTable env),
                     varTable = foldl (\tbl param -> insertParam param tbl pos)
                                      Map.empty params,
@@ -121,8 +124,10 @@ doSemCheckCStmt env stmt =
           in
             (concatMap (doSemCheckCVarDecl env_) vardecls) ++
               (concatMap (doSemCheckCStmt env_) stmts)
-      CIfStmt e stmt Nothing _ -> -- TODO: check type of predicate exp
-          (doSemCheckCExp env e) ++ (doSemCheckCStmt env stmt)
+      CIfStmt e stmt Nothing pos -> -- TODO: check type of predicate exp
+          let typErrs = doTypeCheckCExp env TypInt e
+          in
+            (doSemCheckCExp env e) ++ (doSemCheckCStmt env stmt) ++ typErrs
       CIfStmt e stmt (Just elseStmt) _ ->
           (doSemCheckCExp env e) ++ 
               (doSemCheckCStmt env stmt) ++
@@ -139,6 +144,18 @@ doSemCheckCStmt env stmt =
       CNopStmt _ ->
           []
 
+doTypeCheckCExp :: Env -> TypeExp -> CExp -> [SemError]
+doTypeCheckCExp env expectedTyp expr =
+    let (fixErrs, fixedTyp) = fixType env expr
+    in
+      case fixedTyp of
+        Nothing -> [TypeUndecidable expr]
+        Just typ ->
+            if expectedTyp == typ then
+                []
+            else
+                [TypeError expectedTyp typ expr]
+
 insertCVarDecl :: CVarDecl -> Map.Map String VarInfo -> Map.Map String VarInfo
 insertCVarDecl (typ, id, pos) table =
     Map.insert id (VarInfo typ pos) table
@@ -151,7 +168,7 @@ isBreakable env =
           case (parent env) of
             Just p -> isBreakable p
             Nothing -> False
-      FuncBlock -> False
+      FuncBlock _ -> False
       Root -> False
 
 isContinuable = isBreakable
@@ -172,13 +189,23 @@ doSemCheckCExp env expr =
           in
             case (Map.lookup id (funcTable env)) of
               Nothing -> (UndefinedFunctionError id pos) : argErrs
-              Just (FuncInfo typ id paramTyps _) -> -- TODO: arg type check
-                  argErrs
+              Just (fi @ (FuncInfo typ id paramTyps _)) -> -- TODO: arg type check
+                  argErrs ++ (doTypeCheckCFuncallExp env fi id args pos)
       CUnaryExp op e _ -> doSemCheckCExp env e
       CBinaryExp op e1 e2 _ ->
           (doSemCheckCExp env e1) ++ (doSemCheckCExp env e2)
       CAssignExp e1 e2 _ ->     -- TODO: type checking
           (doSemCheckLval env e1) ++ (doSemCheckCExp env e2)
+
+doTypeCheckCFuncallExp :: Env -> FuncInfo -> Ident -> [CExp] -> SourcePos -> [SemError]
+doTypeCheckCFuncallExp env fi id args pos =
+    case fi of
+      FuncInfo typ id paramTyps _ ->
+          if length paramTyps == length args then
+              concatMap (\(typ, arg) -> doTypeCheckCExp env typ arg)
+                        (zip paramTyps args)
+          else
+              [ArityError id (length paramTyps) (length args) pos]
 
 doSemCheckLval :: Env -> CExp -> [SemError]
 doSemCheckLval env expr =
@@ -199,5 +226,44 @@ isIdentDefined env id =
             Just p -> isIdentDefined p id
             Nothing -> False
 
+lookupVarInfo :: Env -> Ident -> Maybe VarInfo
+lookupVarInfo env id =
+    case Map.lookup id (varTable env) of
+      Just vi -> Just vi
+      Nothing ->
+          case parent env of
+            Just p -> lookupVarInfo p id
+            Nothing -> Nothing
+
+lookupFuncInfo :: Env -> Ident -> Maybe FuncInfo
+lookupFuncInfo env id =
+    case Map.lookup id (funcTable env) of
+      Just fi -> Just fi
+      Nothing ->
+          case parent env of
+            Just p -> lookupFuncInfo p id
+            Nothing -> Nothing
+
 doSemCheckCVarDecl :: Env -> CVarDecl -> [SemError]
 doSemCheckCVarDecl a b = []
+
+fixType :: Env -> CExp -> ([SemError], Maybe TypeExp)
+fixType env expr =
+    case expr of
+      CLitIntExp _ _ -> ([], Just TypInt)
+      CParenExp e _ -> fixType env e
+      CIdentExp id pos->
+          case lookupVarInfo env id of
+            Just (VarInfo typ _) -> ([], Just typ)
+            Nothing -> ([], Nothing) -- UndefinedNameError is raised by doSemCheckCExp
+      CFuncallExp id _ pos ->
+          case lookupFuncInfo env id of
+            Just (FuncInfo typ  _ _ _) -> ([], Just typ)
+            Nothing -> ([], Nothing) -- UndefinedNameError is raised by doSemCheckCExp
+      CUnaryExp _ e _ -> fixType env e
+      CBinaryExp _ e1 e2 _ -> coerceType env e1 e2
+      CAssignExp e _ _ -> fixType env e
+
+coerceType :: Env -> CExp -> CExp -> ([SemError], Maybe TypeExp)
+coerceType env e1 e2 =          -- TODO:
+    fixType env e1
