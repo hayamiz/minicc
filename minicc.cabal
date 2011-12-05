@@ -17,3 +17,9 @@ Executable parser
   Build-Depends:	base, parsec
   Main-Is:		ParserMain.hs
   Hs-Source-Dirs:	src
+
+Executable semchecker
+  Build-Depends:	base, parsec, containers
+  Main-Is:		SemanticMain.hs
+  Hs-Source-Dirs:	src
+

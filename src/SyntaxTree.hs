@@ -26,7 +26,7 @@ data Keyword = KwBreak
              | KwReturn
              | KwWhile
 type Ident = String
-data TypeExp = TypInt deriving (Show)
+data TypeExp = TypInt deriving (Show, Eq)
 
 type CProgram = [CDef]
 

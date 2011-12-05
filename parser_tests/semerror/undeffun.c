@@ -1,0 +1,5 @@
+
+int hoge(){
+    return foo();
+}
+
