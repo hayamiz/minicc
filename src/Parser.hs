@@ -272,6 +272,19 @@ parseFile filename =
       str <- readFile filename
       return $ parseProgram filename str
 
+-- utility function for debugging
+parseExp :: String -> CExp
+parseExp src =
+    case parse expr "(unknown)" src of
+      Right e -> e
+      Left _ -> error "parse error"
+
+parseStmt :: String -> CStmt
+parseStmt src =
+    case parse stmt "(unknown)" src of
+      Right s -> s
+      Left _ -> error "parse error"
+
 -- printer
 
 cProgramToString :: CProgram -> String
